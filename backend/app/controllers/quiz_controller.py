@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form
 from datetime import datetime
 import logging
 
@@ -11,10 +11,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/generate-quiz", response_model=QuizResponse)
-async def generate_quiz(file: UploadFile = File(...)):
+async def generate_quiz(
+    file: UploadFile = File(...),
+    num_questions: int = Form(default=5, ge=1, le=20)
+):
     """Generate quiz questions from uploaded file."""
     try:
-        logger.info(f"Received file: {file.filename}, content_type: {file.content_type}")
+        logger.info(f"Received file: {file.filename}, content_type: {file.content_type}, num_questions: {num_questions}")
         
         # Extract text content
         text_content = await FileService.extract_text_content(file)
@@ -24,7 +27,7 @@ async def generate_quiz(file: UploadFile = File(...)):
         logger.info(f"Successfully extracted text content, length: {len(text_content)} characters")
         
         # Generate quiz
-        questions = await QuizService.generate_quiz(text_content)
+        questions = await QuizService.generate_quiz(text_content, num_questions)
         
         return QuizResponse(questions=questions)
         

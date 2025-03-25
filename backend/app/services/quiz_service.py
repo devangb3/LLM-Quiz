@@ -11,24 +11,24 @@ logger = logging.getLogger(__name__)
 
 class QuizService:
     @staticmethod
-    async def generate_quiz(text_content: str) -> list[QuizQuestion]:
+    async def generate_quiz(text_content: str, num_questions: int = 5) -> list[QuizQuestion]:
         """Generate quiz questions from text content."""
         try:
-            response_json = await QuizService._call_deepseek_api(text_content)
+            response_json = await QuizService._call_deepseek_api(text_content, num_questions)
             return QuizService._process_api_response(response_json)
         except Exception as e:
             logger.error(f"Error in quiz generation: {str(e)}")
             raise
 
     @staticmethod
-    async def _call_deepseek_api(text_content: str) -> Dict[str, Any]:
+    async def _call_deepseek_api(text_content: str, num_questions: int) -> Dict[str, Any]:
         """Call Deepseek API with error handling."""
         headers = {
             "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
             "Content-Type": "application/json"
         }
         
-        prompt = QuizService._create_prompt(text_content)
+        prompt = QuizService._create_prompt(text_content, num_questions)
         
         try:
             api_request = {
@@ -51,8 +51,7 @@ class QuizService:
             response = requests.post(
                 settings.DEEPSEEK_API_URL,
                 headers=headers,
-                json=api_request,
-                timeout=30
+                json=api_request
             )
             
             logger.info(f"Deepseek API response status: {response.status_code}")
@@ -72,9 +71,9 @@ class QuizService:
             raise HTTPException(status_code=500, detail=f"API request failed: {str(e)}")
 
     @staticmethod
-    def _create_prompt(text_content: str) -> str:
+    def _create_prompt(text_content: str, num_questions: int) -> str:
         """Create the prompt for the API."""
-        return f"""Create 5 multiple choice questions based on this study material. Format your response as a JSON array.
+        return f"""Create {num_questions} multiple choice questions based on this study material. Format your response as a JSON array.
 
 Example format:
 [

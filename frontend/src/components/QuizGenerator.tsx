@@ -14,6 +14,14 @@ import {
   AlertTitle,
   AlertDescription,
   Code,
+  NumberInput,
+  NumberInputField,
+  NumberInputStepper,
+  NumberIncrementStepper,
+  NumberDecrementStepper,
+  FormControl,
+  FormLabel,
+  HStack,
 } from '@chakra-ui/react'
 import axios, { AxiosError } from 'axios'
 import { ENDPOINTS } from '../config/api'
@@ -45,7 +53,22 @@ const QuizGenerator = () => {
   const [selectedAnswers, setSelectedAnswers] = useState<string[]>([])
   const [showResults, setShowResults] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [numQuestions, setNumQuestions] = useState<number>(5)
+  const [answerSubmitted, setAnswerSubmitted] = useState(false)
+  const [score, setScore] = useState(0)
   const toast = useToast()
+
+  const resetQuiz = () => {
+    setQuestions([])
+    setFile(null)
+    setSelectedAnswers([])
+    setCurrentQuestion(0)
+    setShowResults(false)
+    setError(null)
+    setAnswerSubmitted(false)
+    setScore(0)
+    logger.info('Quiz reset')
+  }
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     try {
@@ -110,9 +133,13 @@ const QuizGenerator = () => {
     setError(null)
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('num_questions', numQuestions.toString())
 
     try {
-      logger.info('Sending file to backend for quiz generation', { fileName: file.name })
+      logger.info('Sending file to backend for quiz generation', { 
+        fileName: file.name,
+        numQuestions 
+      })
       const response = await axios.post(ENDPOINTS.GENERATE_QUIZ, formData)
       
       logger.info('Quiz generated successfully', { 
@@ -123,6 +150,8 @@ const QuizGenerator = () => {
       setSelectedAnswers(new Array(response.data.questions.length).fill(''))
       setCurrentQuestion(0)
       setShowResults(false)
+      setAnswerSubmitted(false)
+      setScore(0)
       
       toast({
         title: 'Quiz Generated',
@@ -166,6 +195,29 @@ const QuizGenerator = () => {
     const newAnswers = [...selectedAnswers]
     newAnswers[currentQuestion] = value
     setSelectedAnswers(newAnswers)
+    setAnswerSubmitted(false)
+  }
+
+  const submitAnswer = () => {
+    const currentAnswer = selectedAnswers[currentQuestion]
+    const correctAnswer = questions[currentQuestion].correct_answer
+    const isCorrect = currentAnswer === correctAnswer
+    
+    if (isCorrect) {
+      setScore(prev => prev + 1)
+    }
+    
+    setAnswerSubmitted(true)
+    
+    toast({
+      title: isCorrect ? 'Correct!' : 'Incorrect',
+      description: isCorrect 
+        ? 'Great job!' 
+        : `The correct answer was: ${correctAnswer}`,
+      status: isCorrect ? 'success' : 'error',
+      duration: 3000,
+      isClosable: true,
+    })
   }
 
   const nextQuestion = () => {
@@ -174,18 +226,11 @@ const QuizGenerator = () => {
         currentQuestion: currentQuestion + 1 
       })
       setCurrentQuestion(currentQuestion + 1)
+      setAnswerSubmitted(false)
     } else {
       logger.info('Quiz completed, showing results')
       setShowResults(true)
     }
-  }
-
-  const calculateScore = () => {
-    const score = questions.reduce((score, question, index) => {
-      return score + (question.correct_answer === selectedAnswers[index] ? 1 : 0)
-    }, 0)
-    logger.info('Score calculated', { score, total: questions.length })
-    return score
   }
 
   if (loading) {
@@ -224,24 +269,20 @@ const QuizGenerator = () => {
   }
 
   if (showResults) {
-    const score = calculateScore()
     return (
       <Box textAlign="center" p={6} borderWidth={1} borderRadius="lg">
         <Text fontSize="2xl" mb={4}>
           Quiz Complete!
         </Text>
         <Text fontSize="xl" mb={4}>
-          Your score: {score} out of {questions.length}
+          Your final score: {score} out of {questions.length}
+        </Text>
+        <Text fontSize="lg" mb={6} color={score / questions.length >= 0.7 ? "green.500" : "orange.500"}>
+          {score / questions.length >= 0.7 ? "Great job!" : "Keep practicing!"}
         </Text>
         <Button
           colorScheme="purple"
-          onClick={() => {
-            logger.info('Starting new quiz')
-            setQuestions([])
-            setFile(null)
-            setSelectedAnswers([])
-            setError(null)
-          }}
+          onClick={resetQuiz}
         >
           Start New Quiz
         </Button>
@@ -259,29 +300,67 @@ const QuizGenerator = () => {
         <Text fontSize="lg" mb={4}>
           {question.question}
         </Text>
-        <RadioGroup onChange={handleAnswer} value={selectedAnswers[currentQuestion]}>
+        <RadioGroup 
+          onChange={handleAnswer} 
+          value={selectedAnswers[currentQuestion]}
+          isDisabled={answerSubmitted}
+        >
           <Stack spacing={4}>
             {question.options.map((option, index) => (
-              <Radio key={index} value={option}>
-                {option}
+              <Radio 
+                key={index} 
+                value={option}
+                colorScheme={
+                  answerSubmitted
+                    ? option === question.correct_answer
+                      ? "green"
+                      : selectedAnswers[currentQuestion] === option
+                      ? "red"
+                      : "gray"
+                    : "purple"
+                }
+              >
+                <Text
+                  color={
+                    answerSubmitted
+                      ? option === question.correct_answer
+                        ? "green.500"
+                        : selectedAnswers[currentQuestion] === option
+                        ? "red.500"
+                        : "gray.700"
+                      : "gray.700"
+                  }
+                >
+                  {option}
+                </Text>
               </Radio>
             ))}
           </Stack>
         </RadioGroup>
-        <Button
-          mt={6}
-          colorScheme="purple"
-          onClick={nextQuestion}
-          isDisabled={!selectedAnswers[currentQuestion]}
-        >
-          {currentQuestion === questions.length - 1 ? 'Finish Quiz' : 'Next Question'}
-        </Button>
+        <HStack mt={6} spacing={4} justify="center">
+          {!answerSubmitted ? (
+            <Button
+              colorScheme="purple"
+              onClick={submitAnswer}
+              isDisabled={!selectedAnswers[currentQuestion]}
+            >
+              Submit Answer
+            </Button>
+          ) : (
+            <Button
+              colorScheme="purple"
+              onClick={nextQuestion}
+            >
+              {currentQuestion === questions.length - 1 ? 'Show Final Results' : 'Next Question'}
+            </Button>
+          )}
+        </HStack>
       </Box>
     )
   }
 
   return (
-    <VStack spacing={4} w="100%">
+    <VStack spacing={6} w="100%">
       <Box
         w="100%"
         h="200px"
@@ -309,6 +388,22 @@ const QuizGenerator = () => {
           {file ? file.name : 'Drop your study material here or click to browse'}
         </Text>
       </Box>
+      <FormControl>
+        <FormLabel>Number of Questions</FormLabel>
+        <NumberInput
+          min={1}
+          max={20}
+          value={numQuestions}
+          onChange={(_, value) => setNumQuestions(value)}
+          defaultValue={5}
+        >
+          <NumberInputField />
+          <NumberInputStepper>
+            <NumberIncrementStepper />
+            <NumberDecrementStepper />
+          </NumberInputStepper>
+        </NumberInput>
+      </FormControl>
       <Button
         colorScheme="purple"
         onClick={handleSubmit}
