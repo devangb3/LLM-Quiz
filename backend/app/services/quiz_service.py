@@ -2,7 +2,7 @@ import json
 import logging
 import requests
 from fastapi import HTTPException
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from app.config.settings import settings
 from app.models.quiz import QuizQuestion
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class QuizService:
     @staticmethod
-    async def generate_quiz(text_content: str, num_questions: int = 5) -> list[QuizQuestion]:
+    async def generate_quiz(text_content: str, num_questions: int = 5) -> List[QuizQuestion]:
         """Generate quiz questions from text content."""
         try:
             response_json = await QuizService._call_deepseek_api(text_content, num_questions)
@@ -94,7 +94,7 @@ Study material:
 {text_content}"""
 
     @staticmethod
-    def _process_api_response(response_json: Dict[str, Any]) -> list[QuizQuestion]:
+    def _process_api_response(response_json: Dict[str, Any]) -> List[QuizQuestion]:
         """Process and validate the API response."""
         try:
             content = response_json["choices"][0]["message"]["content"].strip()
@@ -113,7 +113,7 @@ Study material:
             if not content.startswith('['):
                 start_idx = content.find('[')
                 end_idx = content.rfind(']')
-                if start_idx != -1 and end_idx != -1:
+                if (start_idx != -1 and end_idx != -1):
                     content = content[start_idx:end_idx + 1]
                 else:
                     raise ValueError("Could not find JSON array in response")
@@ -144,4 +144,4 @@ Study material:
             raise HTTPException(status_code=500, detail="Failed to parse API response")
         except ValueError as e:
             logger.error(f"Validation error: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e)) 
+            raise HTTPException(status_code=500, detail=str(e))
